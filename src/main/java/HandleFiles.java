@@ -14,21 +14,14 @@ public class HandleFiles {
   
   public static FileObject upload(OpenAIClient client, Part file) {
     try {
-        // Download file from URL
-        // byte[] fileBytes = url.openStream().readAllBytes();
-
         // Create temp file directly
-        Path tempFile = Files.createTempFile("openai-upload-", ".pdf");
+        String fileName = file.getSubmittedFileName();
+        Path tempFile = Files.createTempFile(String.format("%s-", fileName), ".pdf");
         
         // Write uploaded content directly to temp file
         try (var input = file.getInputStream()) {
-            long bytesCopied = Files.copy(input, tempFile, StandardCopyOption.REPLACE_EXISTING);
-            System.out.println("Bytes copied: " + bytesCopied);
+            Files.copy(input, tempFile, StandardCopyOption.REPLACE_EXISTING);
         }
-
-        // Create temp file (will be deleted immediately after upload)
-        // Path tempFile = Files.createTempFile("upload", ".tmp");
-        // Files.write(tempFile, fileBytes);
 
         try {
             // Upload to OpenAI

@@ -55,9 +55,6 @@ public class Main {
 
         post("/upload", (req, res) -> {
             try {
-                // String fileUrl = req.queryParams("url");
-                // URL url = new URL(fileUrl);
-
                 req.raw().setAttribute("org.eclipse.jetty.multipartConfig", 
                     new MultipartConfigElement(""));
                 
@@ -83,8 +80,7 @@ public class Main {
                 return gson.toJson(Map.of(
                     "id", fileObject.id(),
                     "filename", fileObject.filename(),
-                    "purpose", fileObject.purpose(),
-                    "status", fileObject.status()
+                    "purpose", fileObject.purpose().value()
                 ));
         
             } catch (Exception e) {
@@ -96,7 +92,6 @@ public class Main {
         get("/view", (req, res) -> {
             List<FileObject> files = HandleFiles.view(client);
             res.type("application/json");
-            System.out.println(files);
 
             List<Map<String, Object>> fileList = new ArrayList<>();
             for (FileObject file : files) {
