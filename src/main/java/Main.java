@@ -68,6 +68,12 @@ public class Main {
                     return "{\"error\":\"No file provided\"}";
                 }
 
+                // If there are two files, delete the older file
+                List<FileObject> files = HandleFiles.view(client);
+                if (files.size() == 2) {
+                    HandleFiles.delete(client, files.get(0).id());
+                }
+
                 // FileObject fileObject = handleFiles.upload(client, url);
                 FileObject fileObject = HandleFiles.upload(client, file);
 
