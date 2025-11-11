@@ -1,8 +1,12 @@
-import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import javax.servlet.MultipartConfigElement;
+import javax.servlet.http.Part;
+
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.ChatModel;
@@ -11,15 +15,18 @@ import com.openai.models.responses.Response;
 import com.openai.models.responses.ResponseCreateParams;
 
 import io.github.cdimascio.dotenv.Dotenv;
+import static spark.Spark.delete;
 import static spark.Spark.get;
 import static spark.Spark.post;
 
 public class Main {
     private static OpenAIClient client;
-    private static HandleFiles handleFiles;
 
     public static void main(String[] args) {
-        Gson gson = new Gson();
+        Gson gson = new GsonBuilder()
+            .excludeFieldsWithoutExposeAnnotation()
+            .setPrettyPrinting()
+            .create();
         
         // Load environment variables
         Dotenv dotenv = Dotenv
@@ -48,14 +55,26 @@ public class Main {
 
         post("/upload", (req, res) -> {
             try {
-                String fileUrl = req.queryParams("url");
-                URL url = new URL(fileUrl);
+                // String fileUrl = req.queryParams("url");
+                // URL url = new URL(fileUrl);
 
-                FileObject fileObject = handleFiles.upload(client, url);
+                req.raw().setAttribute("org.eclipse.jetty.multipartConfig", 
+                    new MultipartConfigElement(""));
+                
+                Part file = req.raw().getPart("file");
+
+                if (file == null) {
+                    res.status(400);
+                    return "{\"error\":\"No file provided\"}";
+                }
+
+                // FileObject fileObject = handleFiles.upload(client, url);
+                FileObject fileObject = HandleFiles.upload(client, file);
+
                 
                 res.type("application/json");
 
-                return new Gson().toJson(Map.of(
+                return gson.toJson(Map.of(
                     "id", fileObject.id(),
                     "filename", fileObject.filename(),
                     "purpose", fileObject.purpose(),
@@ -64,14 +83,33 @@ public class Main {
         
             } catch (Exception e) {
                 res.status(500);
-                return new Gson().toJson(Map.of("error", e.getMessage()));
+                return gson.toJson(Map.of("error", e.getMessage()));
             }
         });
 
         get("/view", (req, res) -> {
-            List<FileObject> files = handleFiles.view(client);
+            List<FileObject> files = HandleFiles.view(client);
             res.type("application/json");
-            return new Gson().toJson(files);
+            System.out.println(files);
+
+            List<Map<String, Object>> fileList = new ArrayList<>();
+            for (FileObject file : files) {
+                fileList.add(Map.of(
+                    "id", file.id(),
+                    "filename", file.filename(),
+                    "purpose", file.purpose().value(),
+                    "created_at", file.createdAt()
+                ));
+            }
+            return gson.toJson(fileList);
+        });
+
+        delete("/delete/:file_id", (req, res) -> {
+            String fileId = req.params(":file_id");
+            System.out.println("Deleting file: " + fileId);
+            HandleFiles.delete(client, fileId);
+            res.status(200);
+            return "File deleted";
         });
     }
 }
