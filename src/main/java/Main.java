@@ -13,6 +13,8 @@ import com.openai.models.ChatModel;
 import com.openai.models.files.FileObject;
 import com.openai.models.responses.Response;
 import com.openai.models.responses.ResponseCreateParams;
+import com.openai.models.vectorstores.VectorStore;
+import com.openai.models.vectorstores.VectorStoreCreateParams;
 
 import io.github.cdimascio.dotenv.Dotenv;
 import static spark.Spark.delete;
@@ -21,6 +23,7 @@ import static spark.Spark.post;
 
 public class Main {
     private static OpenAIClient client;
+    private static AssistantCompare assistantCompare;
 
     public static void main(String[] args) {
         Gson gson = new GsonBuilder()
@@ -39,6 +42,8 @@ public class Main {
         client = OpenAIOkHttpClient.builder()
             .apiKey(apiKey)
             .build();
+
+        assistantCompare = new AssistantCompare(client);
             
         get("/hello", (req, res) -> {
             ResponseCreateParams params = ResponseCreateParams.builder()
@@ -51,6 +56,41 @@ public class Main {
             res.type("application/json");
             
             return response.output();
+        });
+
+        get("/analyze", (req, res) -> {
+            // String text = req.queryParams("text");
+
+            List<FileObject> files =HandleFiles.view(client);
+            if (files.size() != 2) {
+                res.status(400);
+                return "Need 2 files to procsss";
+            }
+
+            List<String> ids1 = new ArrayList<>();
+            List<String> ids2 = new ArrayList<>();
+            
+            ids1.add(files.get(0).id());
+            ids2.add(files.get(1).id());
+
+            VectorStore vectorStore1 = client.vectorStores().create(
+                VectorStoreCreateParams.builder()
+                    .fileIds(ids1)
+                    .build()
+            );
+
+            VectorStore vectorStore2 = client.vectorStores().create(
+                VectorStoreCreateParams.builder()
+                    .fileIds(ids2)
+                    .build()
+            );
+
+            String response = assistantCompare.compare(client, vectorStore1.id(), vectorStore2.id());
+            System.out.println(response);
+
+            res.type("application/json");
+            
+            return gson.toJson(Map.of("response", response));
         });
 
         post("/upload", (req, res) -> {
