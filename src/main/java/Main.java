@@ -7,6 +7,7 @@ import javax.servlet.http.Part;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.annotations.SerializedName;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.ChatModel;
@@ -25,9 +26,18 @@ public class Main {
     private static OpenAIClient client;
     private static AssistantCompare assistantCompare;
 
+    static class CompareRequestBody {
+        @SerializedName("vector")
+        public String vector;
+
+        public String getVector() {
+            return vector;
+        }
+    }
+
     public static void main(String[] args) {
         Gson gson = new GsonBuilder()
-            .excludeFieldsWithoutExposeAnnotation()
+            // .excludeFieldsWithoutExposeAnnotation()
             .setPrettyPrinting()
             .create();
         
@@ -67,27 +77,43 @@ public class Main {
                 return "Need 2 files to procsss";
             }
 
-            List<String> ids1 = new ArrayList<>();
-            List<String> ids2 = new ArrayList<>();
+            List<String> fileIds = new ArrayList<>();
             
-            ids1.add(files.get(0).id());
-            ids2.add(files.get(1).id());
+            fileIds.add(files.get(0).id());
+            fileIds.add(files.get(1).id());
 
             VectorStore vectorStore1 = client.vectorStores().create(
                 VectorStoreCreateParams.builder()
-                    .fileIds(ids1)
+                    .fileIds(fileIds)
                     .build()
             );
 
-            VectorStore vectorStore2 = client.vectorStores().create(
-                VectorStoreCreateParams.builder()
-                    .fileIds(ids2)
-                    .build()
-            );
+            // VectorStore vectorStore2 = client.vectorStores().create(
+            //     VectorStoreCreateParams.builder()
+            //         .fileIds(ids2)
+            //         .build()
+            // );
 
-            String response = assistantCompare.compare(client, vectorStore1.id(), vectorStore2.id());
+            res.type("application/json");
+            
+            return gson.toJson(Map.of("response", vectorStore1.id()));
+        });
+
+        post("/compare", (req, res) -> {
+            System.out.println("Comparing");
+
+            System.out.println(req.body());
+
+            CompareRequestBody body = gson.fromJson(req.body(), CompareRequestBody.class);
+            System.out.println(body);
+            System.out.println(body.vector);
+            String vector = body.getVector();
+
+            System.out.println(vector);
+
+            String response = assistantCompare.compare(client, vector);
+
             System.out.println(response);
-
             res.type("application/json");
             
             return gson.toJson(Map.of("response", response));
@@ -143,6 +169,26 @@ public class Main {
                 ));
             }
             return gson.toJson(fileList);
+        });
+
+        get("/view-vector-store", (req, res) -> {
+            List<VectorStore> vectorStores = client.vectorStores().list().data();
+            res.type("application/json");
+
+            List<String> vectorList = new ArrayList<>();
+            for (VectorStore vectorStore : vectorStores) {
+                vectorList.add(vectorStore.id());
+            }
+
+            return gson.toJson(vectorList);
+        });
+
+        delete("/delete-vector-store/:file_id", (req, res) -> {
+            String fileId = req.params(":file_id");
+            System.out.println("Deleting file: " + fileId);
+            client.vectorStores().delete(fileId);
+            res.status(200);
+            return "File deleted";
         });
 
         delete("/delete/:file_id", (req, res) -> {
