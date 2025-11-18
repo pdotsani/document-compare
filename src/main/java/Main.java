@@ -11,6 +11,11 @@ import com.google.gson.annotations.SerializedName;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.ChatModel;
+import com.openai.models.beta.threads.Thread;
+import com.openai.models.beta.threads.messages.Message;
+import com.openai.models.beta.threads.messages.MessageContent;
+import com.openai.models.beta.threads.messages.MessageListPage;
+import com.openai.models.beta.threads.messages.MessageListParams;
 import com.openai.models.files.FileObject;
 import com.openai.models.responses.Response;
 import com.openai.models.responses.ResponseCreateParams;
@@ -37,7 +42,6 @@ public class Main {
 
     public static void main(String[] args) {
         Gson gson = new GsonBuilder()
-            // .excludeFieldsWithoutExposeAnnotation()
             .setPrettyPrinting()
             .create();
         
@@ -69,8 +73,6 @@ public class Main {
         });
 
         get("/analyze", (req, res) -> {
-            // String text = req.queryParams("text");
-
             List<FileObject> files =HandleFiles.view(client);
             if (files.size() != 2) {
                 res.status(400);
@@ -82,38 +84,23 @@ public class Main {
             fileIds.add(files.get(0).id());
             fileIds.add(files.get(1).id());
 
-            VectorStore vectorStore1 = client.vectorStores().create(
+            VectorStore vectorStore = client.vectorStores().create(
                 VectorStoreCreateParams.builder()
                     .fileIds(fileIds)
                     .build()
             );
 
-            // VectorStore vectorStore2 = client.vectorStores().create(
-            //     VectorStoreCreateParams.builder()
-            //         .fileIds(ids2)
-            //         .build()
-            // );
-
             res.type("application/json");
             
-            return gson.toJson(Map.of("response", vectorStore1.id()));
+            return gson.toJson(Map.of("response", vectorStore.id()));
         });
 
         post("/compare", (req, res) -> {
-            System.out.println("Comparing");
-
-            System.out.println(req.body());
-
             CompareRequestBody body = gson.fromJson(req.body(), CompareRequestBody.class);
-            System.out.println(body);
-            System.out.println(body.vector);
             String vector = body.getVector();
-
-            System.out.println(vector);
 
             String response = assistantCompare.compare(client, vector);
 
-            System.out.println(response);
             res.type("application/json");
             
             return gson.toJson(Map.of("response", response));
@@ -137,9 +124,7 @@ public class Main {
                     HandleFiles.delete(client, files.get(0).id());
                 }
 
-                // FileObject fileObject = handleFiles.upload(client, url);
                 FileObject fileObject = HandleFiles.upload(client, file);
-
                 
                 res.type("application/json");
 
@@ -149,6 +134,36 @@ public class Main {
                     "purpose", fileObject.purpose().value()
                 ));
         
+            } catch (Exception e) {
+                res.status(500);
+                return gson.toJson(Map.of("error", e.getMessage()));
+            }
+        });
+
+        get("/view-thread/:thread_id", (req, res) -> {
+            try {
+                String threadId = req.params(":thread_id");
+                Thread thread = client.beta().threads().retrieve(threadId);
+                
+                MessageListPage messagesList = client.beta().threads().messages().list(
+                    thread.id(),
+                    MessageListParams.builder().build()
+                );
+
+                List<List<MessageContent>> content = new ArrayList<>();
+
+                for (Message message : messagesList.data()) {
+                    content.add(message.content());
+                }
+                
+
+                res.type("application/json");
+
+                return gson.toJson(Map.of(
+                    "id", thread.id(),
+                    "messages", content
+                ));
+
             } catch (Exception e) {
                 res.status(500);
                 return gson.toJson(Map.of("error", e.getMessage()));

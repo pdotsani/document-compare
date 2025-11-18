@@ -3,6 +3,8 @@ import java.util.List;
 import com.openai.client.OpenAIClient;
 import com.openai.models.beta.assistants.Assistant;
 import com.openai.models.beta.assistants.AssistantCreateParams;
+import com.openai.models.beta.assistants.AssistantTool;
+import com.openai.models.beta.assistants.FileSearchTool;
 import com.openai.models.beta.threads.Thread;
 import com.openai.models.beta.threads.ThreadCreateParams;
 import com.openai.models.beta.threads.ThreadCreateParams.ToolResources;
@@ -17,8 +19,14 @@ public class AssistantCompare {
   public AssistantCompare(OpenAIClient client) {
     assistant = client.beta().assistants().create(
       AssistantCreateParams.builder()
-        .name("Assistant")
-        .model("gpt-4")
+        .name("Document Comparison Assistant")
+        .model("gpt-4-turbo-preview")
+        .instructions("You are a document comparison assistant. Compare the documents in the vector store and provide a detailed summary of the key differences.")
+        .tools(List.of(
+          AssistantTool.ofFileSearch(
+            FileSearchTool.builder().build()
+          )
+        ))
         .build()
     );
   }
